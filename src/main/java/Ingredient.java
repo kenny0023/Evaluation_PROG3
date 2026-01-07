@@ -7,20 +7,46 @@ public class Ingredient {
 
     public Ingredient() {}
 
-    public int getId() { return id; }
-    public void setId(int id) { this.id = id; }
+    public int getId() {
+        return id;
+    }
 
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
+    public void setId(int id) {
+        this.id = id;
+    }
 
-    public double getPrice() { return price; }
-    public void setPrice(double price) { this.price = price; }
+    public String getName() {
+        return name;
+    }
 
-    public CategoryEnum getCategory() { return category; }
-    public void setCategory(CategoryEnum category) { this.category = category; }
+    public void setName(String name) {
+        this.name = name;
+    }
 
-    public Dish getDish() { return dish; }
-    public void setDish(Dish dish) { this.dish = dish; }
+    public double getPrice() {
+        return price;
+    }
+
+    public void setPrice(double price) {
+        this.price = price;
+    }
+
+    public CategoryEnum getCategory() {
+        return category;
+    }
+
+    public void setCategory(CategoryEnum category) {
+        this.category = category;
+    }
+
+
+    public Dish getDish() {
+        return dish;
+    }
+
+    public void setDish(Dish dish) {
+        this.dish = dish;
+    }
 
     public String getDishName() {
         return dish != null ? dish.getName() : null;
@@ -28,11 +54,12 @@ public class Ingredient {
 
     @Override
     public String toString() {
-        return "Ingredient : " +
-                "id = " + id +
-                ", name = '" + name + '\'' +
-                ", price = " + price +
-                ", category = " + category +
-                ", dish = " + (dish != null ? dish.getName() : "null");
+        return "Ingredient{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", price=" + price +
+                ", category=" + category +
+                ", dish=" + (dish != null ? dish.getName() : "aucun plat") +
+                '}';
     }
 }
