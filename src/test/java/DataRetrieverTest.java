@@ -1,134 +1,121 @@
-import org.junit.jupiter.api.*;
-import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
+import java.sql.Connection;
+import java.sql.Statement;
 import java.util.List;
 
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-public class DataRetrieverTest {
+import static org.junit.jupiter.api.Assertions.*;
 
-    private DataRetriever retriever;
-    private int ingredientCreeId = -1;
+class DishDataRetrieverTest {
+
+    private DishDataRetriever retriever;
 
     @BeforeEach
-    void setUp() {
-        retriever = new DataRetriever();
+    void setUp() throws Exception {
+        retriever = new DishDataRetriever();
+
+        try (Connection conn = new DBConnection().getConnection();
+             Statement stmt = conn.createStatement()) {
+
+            stmt.executeUpdate("DELETE FROM Ingredient;");
+            stmt.executeUpdate("DELETE FROM Dish;");
+
+            stmt.executeUpdate("ALTER SEQUENCE dish_id_seq RESTART WITH 1;");
+            stmt.executeUpdate("ALTER SEQUENCE ingredient_id_seq RESTART WITH 1;");
+
+            stmt.executeUpdate("""
+                INSERT INTO Dish (name, dish_type) VALUES
+                ('Salade fraîche', 'START'),
+                ('Poulet grillé', 'MAIN'),
+                ('Riz aux légumes', 'MAIN'),
+                ('Gâteau au chocolat', 'DESSERT'),
+                ('Salade de fruits', 'DESSERT')
+                """);
+
+            stmt.executeUpdate("""
+                INSERT INTO Ingredient (name, price, category, id_dish) VALUES
+                ('Laitue', 800.00, 'VEGETABLE', 1),
+                ('Tomate', 600.00, 'VEGETABLE', 1),
+                ('Poulet', 4500.00, 'ANIMAL', 2),
+                ('Chocolat', 3000.00, 'OTHER', 4),
+                ('Beurre', 2500.00, 'DAIRY', 4)
+                """);
+        }
     }
 
     @Test
-    @Order(1)
-    @DisplayName("6-a : findDishById retourne un plat complet avec prix calculé")
-    void testFindDishById() {
-        Dish dish = retriever.findDishById(4);
+    void a_findDishById_WithIngredients() throws Exception {
+        Dish dish = retriever.findDishById(1);
 
-        assertNotNull(dish, "Le plat avec ID 4 doit exister");
-        assertEquals("Gâteau au chocolat", dish.getName());
-        assertEquals("DESSERT", dish.getDishType());
-        assertTrue(dish.getPrice() >= 5500.0, "Le prix doit être au moins 5500 (Chocolat + Beurre)");
-        assertEquals(dish.getPrice(), dish.getDishCost(),
-                "getDishCost() doit retourner le même prix que l'attribut price");
+        assertNotNull(dish);
+        assertEquals("Salade fraîche", dish.getName());
+        assertEquals(DishTypeEnum.START, dish.getDishType());
+        assertEquals(2, dish.getIngredients().size());
+        assertEquals(1400.0, dish.getDishPrice(), 0.01);
+
+        assertTrue(dish.getIngredients().stream().anyMatch(i -> i.getName().equals("Laitue")));
+        assertTrue(dish.getIngredients().stream().anyMatch(i -> i.getName().equals("Tomate")));
     }
 
     @Test
-    @Order(2)
-    @DisplayName("Pagination des ingrédients fonctionne")
-    void testFindAllIngredients() {
-        List<Ingredient> page1 = retriever.findAllIngredients(1, 3);
+    void b_findIngredients_Pagination() throws Exception {
+        List<Ingredient> list = retriever.findIngredients(1, 3);
 
-        assertFalse(page1.isEmpty(), "La première page ne doit pas être vide");
-        assertTrue(page1.size() <= 3, "La taille de page doit être respectée");
-        assertNotNull(page1.get(0).getName(), "Les ingrédients doivent avoir un nom");
+        assertEquals(3, list.size());
+        assertEquals("Laitue", list.get(0).getName());
+        assertEquals("Tomate", list.get(1).getName());
+        assertEquals("Poulet", list.get(2).getName());
     }
 
     @Test
-    @Order(3)
-    @DisplayName("Filtre par catégorie VEGETABLE retourne uniquement des légumes")
-    void testFindIngredientsByCategory() {
-        List<Ingredient> legumes = retriever.findIngredientsByCategory(CategoryEnum.VEGETABLE);
+    void c_findIngredientsLike() throws Exception {
+        List<Ingredient> list = retriever.findIngredientsLike("cho");
 
-        assertFalse(legumes.isEmpty(), "Il doit y avoir au moins Laitue et Tomate");
-        assertTrue(legumes.stream()
-                        .allMatch(ing -> ing.getCategory() == CategoryEnum.VEGETABLE),
-                "Tous les ingrédients retournés doivent être VEGETABLE");
+        assertEquals(1, list.size());
+        assertEquals("Chocolat", list.get(0).getName());
     }
 
     @Test
-    @Order(4)
-    @DisplayName("Recherche par nom trouve 'Chocolat'")
-    void testFindIngredientsByName() {
-        List<Ingredient> resultats = retriever.findIngredientsByName("choco");
+    void f_findIngredientsByCategory() throws Exception {
+        List<Ingredient> list = retriever.findIngredientsByCategory(CategoryEnum.VEGETABLE);
 
-        assertFalse(resultats.isEmpty(), "Doit trouver l'ingrédient 'Chocolat'");
-        assertTrue(resultats.stream()
-                        .anyMatch(ing -> ing.getName().toLowerCase().contains("chocolat")),
-                "Au moins un résultat doit contenir 'chocolat'");
+        assertEquals(2, list.size());
+        assertTrue(list.stream().allMatch(i -> i.getCategory() == CategoryEnum.VEGETABLE));
     }
 
     @Test
-    @Order(5)
-    @DisplayName("CRUD : Création d'un ingrédient + impact sur le prix du plat")
-    void testCreateIngredient() {
+    void h_findIngredientsByNameStartingWith() throws Exception {
+        List<Ingredient> list = retriever.findIngredientsByNameStartingWith("Cho");
+
+        assertEquals(1, list.size());
+        assertEquals("Chocolat", list.get(0).getName());
+    }
+
+    @Test
+    void i_createIngredient() throws Exception {
         Dish gateau = retriever.findDishById(4);
-        assertNotNull(gateau);
+        Ingredient creme = new Ingredient(0, "Crème chantilly", 2000.00, CategoryEnum.DAIRY, gateau);
 
-        double prixAvant = gateau.getPrice();
+        retriever.createIngredient(creme);
 
-        Ingredient oeuf = new Ingredient();
-        oeuf.setName("Œuf bio (test unitaire)");
-        oeuf.setPrice(800.00);
-        oeuf.setCategory(CategoryEnum.ANIMAL);
-        oeuf.setDish(gateau);
-
-        boolean succes = retriever.createIngredient(oeuf);
-
-        assertTrue(succes, "La création de l'ingrédient doit réussir");
-        assertTrue(oeuf.getId() > 0, "Un ID doit être généré par la base");
-
-        ingredientCreeId = oeuf.getId();
-
-        double prixApres = retriever.recalculateDishPrice(4);
-        assertEquals(prixAvant + 800.00, prixApres, 0.01,
-                "Le prix du plat doit augmenter de 800 FCFA après ajout de l'œuf");
+        List<Ingredient> dairy = retriever.findIngredientsByCategory(CategoryEnum.DAIRY);
+        assertTrue(dairy.stream().anyMatch(i -> i.getName().equals("Crème chantilly")));
     }
 
     @Test
-    @Order(6)
-    @DisplayName("CRUD : Mise à jour d'un ingrédient modifie le prix du plat")
-    void testUpdateIngredient() {
-        assumeTrue(ingredientCreeId > 0, "Un ingrédient doit avoir été créé avant");
+    void k_saveDish() throws Exception {
+        retriever.saveDish("Pizza Margherita", DishTypeEnum.MAIN);
 
-        double prixAvant = retriever.recalculateDishPrice(4);
-
-        Ingredient oeuf = new Ingredient();
-        oeuf.setId(ingredientCreeId);
-        oeuf.setName("Œuf extra frais");
-        oeuf.setPrice(1200.00); // Augmentation de 400
-        oeuf.setCategory(CategoryEnum.ANIMAL);
-        oeuf.setDish(retriever.findDishById(4));
-
-        boolean succes = retriever.updateIngredient(oeuf);
-
-        assertTrue(succes, "La mise à jour doit réussir");
-
-        double prixApres = retriever.recalculateDishPrice(4);
-        assertEquals(prixAvant + 400.00, prixApres, 0.01,
-                "Le prix du plat doit augmenter de 400 FCFA après modification");
+        Dish pizza = retriever.findDishById(6);
+        assertNotNull(pizza);
+        assertEquals("Pizza Margherita", pizza.getName());
+        assertEquals(DishTypeEnum.MAIN, pizza.getDishType());
     }
 
     @Test
-    @Order(7)
-    @DisplayName("CRUD : Suppression d'un ingrédient restaure le prix initial")
-    void testDeleteIngredient() {
-        assumeTrue(ingredientCreeId > 0, "Un ingrédient doit exister pour être supprimé");
-
-        double prixAvantSuppression = retriever.recalculateDishPrice(4);
-
-        boolean succes = retriever.deleteIngredient(ingredientCreeId);
-
-        assertTrue(succes, "La suppression doit réussir");
-
-        double prixFinal = retriever.recalculateDishPrice(4);
-        assertEquals(5500.0, prixFinal, 0.01,
-                "Le prix du plat doit revenir à 5500 FCFA après suppression de l'ingrédient test");
+    void testFindDishById_NotFound() throws Exception {
+        Dish dish = retriever.findDishById(999);
+        assertNull(dish);
     }
 }

@@ -1,5 +1,5 @@
 --Création de l'utilisateur mini_dish_db_manager
-CREATE USER mini_dish_db_manager WITH PASSWORD 'mini_dish_password';
+CREATE USER mini_dish_db_manager WITH PASSWORD '1234';
 
 --Création de la base de données mini_dish_db
 CREATE DATABASE mini_dish_db
@@ -35,3 +35,21 @@ CREATE TABLE Ingredient (
     category category NOT NULL,
     id_dish INTEGER REFERENCES Dish(id) ON DELETE CASCADE
 );
+
+-- Insertion des données de test (celles de ton énoncé)
+INSERT INTO Dish (name, dish_type) VALUES
+('Salade fraîche', 'START'),
+('Poulet grillé', 'MAIN'),
+('Riz aux légumes', 'MAIN'),
+('Gâteau au chocolat', 'DESSERT'),
+('Salade de fruits', 'DESSERT');
+
+INSERT INTO Ingredient (name, price, category, id_dish) VALUES
+('Laitue', 800.00, 'VEGETABLE', 1),
+('Tomate', 600.00, 'VEGETABLE', 1),
+('Poulet', 4500.00, 'ANIMAL', 2),
+('Chocolat', 3000.00, 'OTHER', 4),
+('Beurre', 2500.00, 'DAIRY', 4);
+
+-- Vérification rapide
+SELECT 'Tables créées et données insérées !' AS status;

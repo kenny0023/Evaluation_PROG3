@@ -1,36 +1,39 @@
+import java.util.ArrayList;
+import java.util.List;
+
 public class Dish {
     private int id;
     private String name;
-    private String dishType;
-    private double price;
+    private DishTypeEnum dishType;
+    private List<Ingredient> ingredients = new ArrayList<>();
 
-    public Dish() {}
+    public Dish(int id, String name, DishTypeEnum dishType) {
+        this.id = id;
+        this.name = name;
+        this.dishType = dishType;
+    }
 
     public int getId() { return id; }
-    public void setId(int id) { this.id = id; }
     public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-    public String getDishType() { return dishType; }
-    public void setDishType(String dishType) { this.dishType = dishType; }
-    public double getPrice() { return price; }
-    public void setPrice(double price) { this.price = price; }
+    public DishTypeEnum getDishType() { return dishType; }
+    public List<Ingredient> getIngredients() { return ingredients; }
+    public void addIngredient(Ingredient ingredient) { this.ingredients.add(ingredient); }
 
-    public double getDishCost() {
-        DataRetriever retriever = new DataRetriever();
-        Dish fullDish = retriever.findDishById(this.id);
-        if (fullDish != null) {
-            return fullDish.getPrice();
-        }
-        return 0.0;
+    public double getDishPrice() {
+        return ingredients.stream().mapToDouble(Ingredient::getPrice).sum();
     }
 
     @Override
     public String toString() {
-        return "Dish{" +
-                "id=" + id +
-                ", name='" + name + '\'' +
-                ", dishType='" + dishType + '\'' +
-                ", price=" + price +
-                '}';
+        StringBuilder sb = new StringBuilder();
+        sb.append("Dish{id=").append(id)
+                .append(", name='").append(name)
+                .append("', type=").append(dishType)
+                .append(", prixTotal=").append(String.format("%.2f", getDishPrice()))
+                .append(" €, ingrédients=").append(ingredients.size()).append("}\n");
+        for (Ingredient i : ingredients) {
+            sb.append("   → ").append(i).append("\n");
+        }
+        return sb.toString();
     }
 }
