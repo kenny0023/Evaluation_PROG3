@@ -17,23 +17,22 @@ public class Dish {
     public String getName() { return name; }
     public DishTypeEnum getDishType() { return dishType; }
     public List<Ingredient> getIngredients() { return ingredients; }
-    public void addIngredient(Ingredient ingredient) { this.ingredients.add(ingredient); }
+
+    public void addIngredient(Ingredient ingredient) {
+        this.ingredients.add(ingredient);
+    }
 
     public double getDishPrice() {
-        return ingredients.stream().mapToDouble(Ingredient::getPrice).sum();
+        double total = 0.0;
+        for (Ingredient ing : ingredients) {
+            total += ing.getTotalPrice();
+        }
+        return total;
     }
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Dish{id=").append(id)
-                .append(", name='").append(name)
-                .append("', type=").append(dishType)
-                .append(", prixTotal=").append(String.format("%.2f", getDishPrice()))
-                .append(" €, ingrédients=").append(ingredients.size()).append("}\n");
-        for (Ingredient i : ingredients) {
-            sb.append("   → ").append(i).append("\n");
-        }
-        return sb.toString();
+        return String.format("Dish{id=%d, name='%s', dishType=%s, prixTotal=%.2f €, ingrédients=%d}",
+                id, name, dishType, getDishPrice(), ingredients.size());
     }
 }

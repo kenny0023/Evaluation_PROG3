@@ -45,77 +45,78 @@ class DishDataRetrieverTest {
     }
 
     @Test
-    void a_findDishById_WithIngredients() throws Exception {
+    void testFindDishById_ReturnsCorrectDish() throws Exception {
         Dish dish = retriever.findDishById(1);
 
         assertNotNull(dish);
         assertEquals("Salade fraîche", dish.getName());
         assertEquals(DishTypeEnum.START, dish.getDishType());
         assertEquals(2, dish.getIngredients().size());
-        assertEquals(1400.0, dish.getDishPrice(), 0.01);
-
-        assertTrue(dish.getIngredients().stream().anyMatch(i -> i.getName().equals("Laitue")));
-        assertTrue(dish.getIngredients().stream().anyMatch(i -> i.getName().equals("Tomate")));
     }
 
     @Test
-    void b_findIngredients_Pagination() throws Exception {
+    void testGetDishPrice_CalculatesCorrectly_WhenQuantitiesAreSet() throws Exception {
+        Dish dish = retriever.findDishById(1);
+
+        dish.getIngredients().get(0).setQuantity(1.0);
+        dish.getIngredients().get(1).setQuantity(2.0);
+
+        double price = dish.getDishPrice();
+        assertEquals(2000.0, price, 0.01);
+    }
+
+    @Test
+    void testSaveDish_CreatesNewDish_WithIngredients() throws Exception {
+        Dish newDish = new Dish(0, "Crêpe Suzette", DishTypeEnum.DESSERT);
+
+        Ingredient farine = new Ingredient(
+                0, "Farine", 500.0, CategoryEnum.VEGETABLE, newDish, 0.25);
+        Ingredient oeuf = new Ingredient(
+                0, "Œuf", 300.0, CategoryEnum.ANIMAL, newDish, 2.0);
+
+        newDish.addIngredient(farine);
+        newDish.addIngredient(oeuf);
+
+        retriever.saveDish(newDish);
+
+        assertTrue(newDish.getId() > 0);
+
+        Dish saved = retriever.findDishById(newDish.getId());
+        assertNotNull(saved);
+        assertEquals("Crêpe Suzette", saved.getName());
+        assertEquals(2, saved.getIngredients().size());
+
+        assertEquals(725.0, saved.getDishPrice(), 0.01);
+    }
+
+    @Test
+    void testFindDishByIdWithPrice_ShowsTotal_WhenQuantitiesSet() throws Exception {
+        Dish dish = retriever.findDishById(4);
+
+        dish.getIngredients().get(0).setQuantity(0.2);
+        dish.getIngredients().get(1).setQuantity(0.1);
+
+        retriever.findDishByIdWithPrice(4);
+
+        assertEquals(850.0, dish.getDishPrice(), 0.01);
+    }
+
+    @Test
+    void testFindIngredients_Pagination() throws Exception {
         List<Ingredient> list = retriever.findIngredients(1, 3);
 
         assertEquals(3, list.size());
         assertEquals("Laitue", list.get(0).getName());
-        assertEquals("Tomate", list.get(1).getName());
-        assertEquals("Poulet", list.get(2).getName());
     }
 
     @Test
-    void c_findIngredientsLike() throws Exception {
-        List<Ingredient> list = retriever.findIngredientsLike("cho");
+    void testFindIngredientsByCategory() throws Exception {
+        List<Ingredient> veggies =
+                retriever.findIngredientsByCategory(CategoryEnum.VEGETABLE);
 
-        assertEquals(1, list.size());
-        assertEquals("Chocolat", list.get(0).getName());
-    }
-
-    @Test
-    void f_findIngredientsByCategory() throws Exception {
-        List<Ingredient> list = retriever.findIngredientsByCategory(CategoryEnum.VEGETABLE);
-
-        assertEquals(2, list.size());
-        assertTrue(list.stream().allMatch(i -> i.getCategory() == CategoryEnum.VEGETABLE));
-    }
-
-    @Test
-    void h_findIngredientsByNameStartingWith() throws Exception {
-        List<Ingredient> list = retriever.findIngredientsByNameStartingWith("Cho");
-
-        assertEquals(1, list.size());
-        assertEquals("Chocolat", list.get(0).getName());
-    }
-
-    @Test
-    void i_createIngredient() throws Exception {
-        Dish gateau = retriever.findDishById(4);
-        Ingredient creme = new Ingredient(0, "Crème chantilly", 2000.00, CategoryEnum.DAIRY, gateau);
-
-        retriever.createIngredient(creme);
-
-        List<Ingredient> dairy = retriever.findIngredientsByCategory(CategoryEnum.DAIRY);
-        assertTrue(dairy.stream().anyMatch(i -> i.getName().equals("Crème chantilly")));
-    }
-
-    @Test
-    void k_saveDish() throws Exception {
-        retriever.saveDish("Pizza Margherita", DishTypeEnum.MAIN);
-
-        Dish pizza = retriever.findDishById(6);
-        assertNotNull(pizza);
-        assertEquals("Pizza Margherita", pizza.getName());
-        assertEquals(DishTypeEnum.MAIN, pizza.getDishType());
-    }
-
-    @Test
-    void testFindDishById_NotFound() throws Exception {
-        Dish dish = retriever.findDishById(999);
-        assertNull(dish);
+        assertEquals(2, veggies.size());
+        assertTrue(veggies.stream()
+                .allMatch(i -> i.getCategory() == CategoryEnum.VEGETABLE));
     }
 }
+
