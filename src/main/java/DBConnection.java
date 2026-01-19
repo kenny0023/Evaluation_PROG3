@@ -10,4 +10,14 @@ public class DBConnection {
     public Connection getConnection() throws SQLException {
         return DriverManager.getConnection(URL, USER, PASSWORD);
     }
+
+    public void closeConnection(Connection connection) {
+        if (connection != null) {
+            try {
+                connection.close();
+            } catch (SQLException e) {
+                System.err.println("Erreur fermeture connexion : " + e.getMessage());
+            }
+        }
+    }
 }

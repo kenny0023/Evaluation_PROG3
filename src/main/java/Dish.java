@@ -2,37 +2,72 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Dish {
-    private int id;
+    private Integer id;
     private String name;
     private DishTypeEnum dishType;
+    private Double sellingPrice;
     private List<Ingredient> ingredients = new ArrayList<>();
 
-    public Dish(int id, String name, DishTypeEnum dishType) {
+    public Dish() {}
+
+    public Dish(Integer id, String name, DishTypeEnum dishType, Double sellingPrice) {
         this.id = id;
         this.name = name;
         this.dishType = dishType;
+        this.sellingPrice = sellingPrice;
     }
-
-    public int getId() { return id; }
-    public String getName() { return name; }
-    public DishTypeEnum getDishType() { return dishType; }
-    public List<Ingredient> getIngredients() { return ingredients; }
 
     public void addIngredient(Ingredient ingredient) {
-        this.ingredients.add(ingredient);
+        ingredients.add(ingredient);
     }
 
-    public double getDishPrice() {
-        double total = 0.0;
-        for (Ingredient ing : ingredients) {
-            total += ing.getTotalPrice();
-        }
-        return total;
+    public double getCostPrice() {
+        return ingredients.stream()
+                .mapToDouble(Ingredient::calculateCost)
+                .sum();
     }
+
+    public double getMargin() {
+        if (sellingPrice == null || sellingPrice <= 0) return 0;
+        return sellingPrice - getCostPrice();
+    }
+
+    public double getMarginPercent() {
+        double margin = getMargin();
+        return sellingPrice != null && sellingPrice > 0
+                ? (margin / sellingPrice) * 100
+                : 0;
+    }
+
+    // Getters & Setters
+    public Integer getId() { return id; }
+    public void setId(Integer id) { this.id = id; }
+    public String getName() { return name; }
+    public DishTypeEnum getDishType() { return dishType; }
+    public Double getSellingPrice() { return sellingPrice; }
+    public List<Ingredient> getIngredients() { return new ArrayList<>(ingredients); }
 
     @Override
     public String toString() {
-        return String.format("Dish{id=%d, name='%s', dishType=%s, prixTotal=%.2f €, ingrédients=%d}",
-                id, name, dishType, getDishPrice(), ingredients.size());
+        double cost = getCostPrice();
+        double margin = getMargin();
+        double marginPct = getMarginPercent();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("Plat : %s (%s)\n", name, dishType));
+        sb.append(String.format("Coût matière     : %,8.0f Ar\n", cost));
+        sb.append(String.format("Prix de vente    : %,8.0f Ar\n", sellingPrice != null ? sellingPrice : 0));
+        sb.append(String.format("Marge brute      : %,8.0f Ar (%.1f%%)\n", margin, marginPct));
+        sb.append("Ingrédients :\n");
+
+        if (ingredients.isEmpty()) {
+            sb.append("  (aucun ingrédient)\n");
+        } else {
+            ingredients.forEach(ing ->
+                    sb.append("  • ").append(ing.toString()).append("\n")
+            );
+        }
+
+        return sb.toString();
     }
 }

@@ -1,48 +1,57 @@
 public class Ingredient {
-    private int id;
+    private Integer id;
     private String name;
-    private double price;
+    private Double price;
     private CategoryEnum category;
-    private Dish dish;
-    private Double quantity;
 
-    public Ingredient(int id, String name, double price, CategoryEnum category, Dish dish) {
-        this(id, name, price, category, dish, null);
-    }
+    // Ces deux champs ne sont pertinents QUE dans le contexte d'un plat
+    private Double requiredQuantity;   // quantité utilisée dans ce plat
+    private String unit;               // ou UnitEnum si tu veux être plus strict
 
-    public Ingredient(int id, String name, double price, CategoryEnum category, Dish dish, Double quantity) {
+    // Constructeurs
+    public Ingredient() {}
+
+    // Utilisé lors de la lecture depuis la BDD (avec quantité/unité)
+    public Ingredient(Integer id, String name, Double price, CategoryEnum category,
+                      Double requiredQuantity, String unit) {
         this.id = id;
         this.name = name;
         this.price = price;
         this.category = category;
-        this.dish = dish;
-        this.quantity = quantity;
+        this.requiredQuantity = requiredQuantity;
+        this.unit = unit;
     }
 
-    public int getId() { return id; }
-    public String getName() { return name; }
-    public double getPrice() { return price; }
-    public CategoryEnum getCategory() { return category; }
-    public Dish getDish() { return dish; }
-    public String getDishName() { return dish != null ? dish.getName() : "aucun"; }
+    // Utilisé quand on crée un ingrédient seul (sans quantité/unité)
+    public Ingredient(String name, Double price, CategoryEnum category) {
+        this.name = name;
+        this.price = price;
+        this.category = category;
+    }
 
-    public Double getQuantity() { return quantity; }
-    public void setQuantity(Double quantity) { this.quantity = quantity; }
-
-    public double getTotalPrice() {
-        if (quantity == null) {
-            throw new IllegalStateException("La quantité de l'ingrédient '" + name + "' n'a pas encore été fixée.");
+    public double calculateCost() {
+        if (requiredQuantity == null) {
+            throw new IllegalStateException("Quantité requise non définie pour l'ingrédient : " + name);
         }
-        return price * quantity;
+        return price * requiredQuantity;
     }
+
+    // Getters & Setters
+    public Integer getId() { return id; }
+    public void setId(Integer id) { this.id = id; }
+    public String getName() { return name; }
+    public Double getPrice() { return price; }
+    public CategoryEnum getCategory() { return category; }
+    public Double getRequiredQuantity() { return requiredQuantity; }
+    public void setRequiredQuantity(Double qty) { this.requiredQuantity = qty; }
+    public String getUnit() { return unit; }
+    public void setUnit(String unit) { this.unit = unit; }
 
     @Override
     public String toString() {
-        return "Ingredient{id=" + id +
-                ", name='" + name +
-                "', price=" + price +
-                ", quantity=" + quantity +
-                ", category=" + category +
-                ", dish='" + getDishName() + "'}";
+        String qty = (requiredQuantity != null && unit != null)
+                ? String.format("x %.2f %s", requiredQuantity, unit)
+                : "";
+        return String.format("%s %s (%.0f Ar)", name, qty, price);
     }
 }

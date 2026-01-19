@@ -1,0 +1,8 @@
+CREATE USER mini_dish_db_manager WITH PASSWORD '1234';
+
+CREATE DATABASE mini_dish_db;
+
+GRANT ALL PRIVILEGES ON DATABASE mini_dish_db TO mini_dish_db_manager;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO mini_dish_db_manager;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO mini_dish_db_manager;

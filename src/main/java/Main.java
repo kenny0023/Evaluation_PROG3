@@ -1,51 +1,46 @@
+import java.sql.SQLException;
+
 public class Main {
     public static void main(String[] args) {
         DishDataRetriever retriever = new DishDataRetriever();
 
         try {
-            int idSoupe = 6;
-            Dish soupe = retriever.findDishById(idSoupe);
-
-            if (soupe != null) {
-                System.out.println("Plat récupéré : " + soupe.getName());
-                System.out.println("Ingrédients :");
-                for (Ingredient ing : soupe.getIngredients()) {
-                    System.out.println(" - " + ing.getName() + " (prix unitaire: " + ing.getPrice() +
-                            " €, quantité: " + (ing.getQuantity() != null ? ing.getQuantity() : "NON FIXÉE") + ")");
-                }
-
-                System.out.println("\nTentative de calcul du prix total...");
-                try {
-                    double prixTotal = soupe.getDishPrice();
-                    System.out.println("Prix total : " + prixTotal + " €");
-                } catch (IllegalStateException e) {
-                    System.out.println("EXCEPTION ATTENDUE (correct) : " + e.getMessage());
-                    System.out.println("→ Le prix ne peut pas être calculé car au moins une quantité n'est pas fixée.");
-                }
+            // Exemple : récupérer et afficher le plat n°1
+            System.out.println("=== Affichage du plat n°1 ===");
+            Dish plat1 = retriever.findDishById(1);
+            if (plat1 != null) {
+                System.out.println(plat1);
             } else {
-                System.out.println("Soupe non trouvée (vérifie l'ID).");
+                System.out.println("Plat n°1 non trouvé");
             }
 
-            System.out.println("\nFixation des quantités + calcul réussi :");
-            soupe.getIngredients().forEach(ing -> {
-                if (ing.getName().equals("Carotte")) ing.setQuantity(0.5);
-                if (ing.getName().equals("Poireau")) ing.setQuantity(0.3);
-            });
-            double prixSoupeOK = soupe.getDishPrice();
-            System.out.println("Prix total soupe après fixation : " + prixSoupeOK + " €");
+            System.out.println("\n=== Affichage du plat n°2 ===");
+            Dish plat2 = retriever.findDishById(2);
+            if (plat2 != null) {
+                System.out.println(plat2);
+            } else {
+                System.out.println("Plat n°2 non trouvé");
+            }
 
-            System.out.println("\nAutres fonctionnalités rapides :");
-            System.out.println("Plat ID 1 (Salade fraîche) : " + retriever.findDishById(1));
-            System.out.println("Pagination page 1 taille 3 :");
-            retriever.findIngredients(1, 3).forEach(System.out::println);
-            System.out.println("Ingrédients contenant 'cho' :");
-            retriever.findIngredientsLike("cho").forEach(System.out::println);
-            System.out.println("Ingrédients VEGETABLE :");
-            retriever.findIngredientsByCategory(CategoryEnum.VEGETABLE).forEach(System.out::println);
+            // Exemple de création/modification d'un plat (si tu as implémenté saveDish)
+            /*
+            Dish nouveauPlat = new Dish(null, "Nouvelle soupe", DishTypeEnum.START, 7500.0);
 
+            Ingredient ing1 = new Ingredient(null, "Carotte", 1200.0, CategoryEnum.VEGETABLE);
+            ing1.setRequiredQuantity(0.4);
+            ing1.setUnit("KG");
 
+            nouveauPlat.addIngredient(ing1);
+
+            Dish saved = retriever.saveDish(nouveauPlat);
+            System.out.println("\nNouveau plat enregistré :\n" + saved);
+            */
+
+        } catch (SQLException e) {
+            System.err.println("Erreur SQL : " + e.getMessage());
+            e.printStackTrace();
         } catch (Exception e) {
-            System.err.println("Erreur lors des tests : " + e.getMessage());
+            System.err.println("Erreur inattendue : " + e.getMessage());
             e.printStackTrace();
         }
     }
