@@ -8,9 +8,8 @@ public class Order {
     private String reference;
     private Instant creationDatetime;
     private BigDecimal totalTtc;
+    private PaymentStatusEnum paymentStatus = PaymentStatusEnum.UNPAID;
     private List<DishOrder> dishOrders = new ArrayList<>();
-
-    public Order() {}
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
@@ -24,6 +23,11 @@ public class Order {
     public BigDecimal getTotalTtc() { return totalTtc; }
     public void setTotalTtc(BigDecimal totalTtc) { this.totalTtc = totalTtc; }
 
+    public PaymentStatusEnum getPaymentStatus() { return paymentStatus; }
+    public void setPaymentStatus(PaymentStatusEnum paymentStatus) { this.paymentStatus = paymentStatus; }
+
+    public boolean isPaid() { return paymentStatus == PaymentStatusEnum.PAID; }
+
     public List<DishOrder> getDishOrders() { return new ArrayList<>(dishOrders); }
 
     public void addDishOrder(DishOrder dishOrder) {
@@ -36,11 +40,10 @@ public class Order {
     @Override
     public String toString() {
         return "Order{" +
-                "id=" + id +
-                ", reference='" + reference + '\'' +
-                ", creationDatetime=" + creationDatetime +
+                "reference='" + reference + '\'' +
                 ", totalTtc=" + totalTtc +
-                ", dishOrdersCount=" + dishOrders.size() +
+                ", paymentStatus=" + paymentStatus +
+                ", items=" + dishOrders.size() +
                 '}';
     }
 }

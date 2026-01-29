@@ -1,0 +1,5 @@
+CREATE TABLE sale (
+    id                SERIAL PRIMARY KEY,
+    id_order          INTEGER NOT NULL UNIQUE REFERENCES "order"(id) ON DELETE CASCADE,
+    creation_datetime TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);

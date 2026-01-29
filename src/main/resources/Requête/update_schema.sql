@@ -10,8 +10,6 @@ UPDATE Ingredient SET required_quantity = NULL WHERE name = 'Beurre';
 ALTER TABLE Dish
 ADD COLUMN IF NOT EXISTS selling_price NUMERIC(10, 2);
 
-
-
 --Ajouts et modifications des colonnes existantes
 ALTER TABLE dish ADD COLUMN IF NOT EXISTS selling_price NUMERIC(15,2);
 ALTER TABLE "order" ALTER COLUMN total_ttc TYPE NUMERIC(15,2);
