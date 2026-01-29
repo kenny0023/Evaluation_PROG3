@@ -1,21 +1,19 @@
+import java.math.BigDecimal;
+
 public class StockValue {
-    private double quantity;
-    private UnitTypeEnum unit;   // ou UnitEnum si tu as changé le nom
+    private BigDecimal quantity;
+    private UnitTypeEnum unit;
 
-    public StockValue() {}
-
-    public StockValue(double quantity, UnitTypeEnum unit) {
-        this.quantity = quantity;
-        this.unit = unit;
+    public StockValue(BigDecimal quantity, UnitTypeEnum unit) {
+        this.quantity = quantity != null ? quantity : BigDecimal.ZERO;
+        this.unit = unit != null ? unit : UnitTypeEnum.KG;
     }
 
-    public double getQuantity() { return quantity; }
-    public void setQuantity(double quantity) { this.quantity = quantity; }
+    public BigDecimal getQuantity() { return quantity; }
     public UnitTypeEnum getUnit() { return unit; }
-    public void setUnit(UnitTypeEnum unit) { this.unit = unit; }
 
     @Override
     public String toString() {
-        return String.format("%.2f %s", quantity, unit);
+        return String.format("%s %s", quantity.setScale(2), unit);
     }
 }

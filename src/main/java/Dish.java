@@ -1,4 +1,5 @@
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -11,25 +12,24 @@ public class Dish {
 
     public Dish() {}
 
-    public void addIngredient(Ingredient ingredient, BigDecimal quantityRequired, UnitTypeEnum unit) {
-        DishIngredient di = new DishIngredient(this, ingredient, quantityRequired, unit);
-        dishIngredients.add(di);
+    public void addIngredient(Ingredient ingredient, BigDecimal quantity, UnitTypeEnum unit) {
+        dishIngredients.add(new DishIngredient(this, ingredient, quantity, unit));
     }
 
     public BigDecimal getDishCost() {
         return dishIngredients.stream()
                 .map(DishIngredient::calculateCost)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     public BigDecimal getGrossMargin() {
         if (sellingPrice == null) {
-            throw new IllegalStateException("Prix de vente non défini pour " + name);
+            throw new IllegalStateException("Prix de vente non défini pour : " + name);
         }
-        return sellingPrice.subtract(getDishCost());
+        return sellingPrice.subtract(getDishCost()).setScale(2, RoundingMode.HALF_UP);
     }
 
-    // Getters & Setters
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
     public String getName() { return name; }
@@ -44,15 +44,15 @@ public class Dish {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(String.format("🍽 %s (%s)\n", name, dishType));
-        sb.append(String.format("Coût matière   : %10.0f Ar\n", getDishCost()));
-        sb.append(String.format("Prix de vente  : %10.0f Ar\n", sellingPrice != null ? sellingPrice : 0));
+        sb.append(String.format("Coût matière   : %10.2f Ar\n", getDishCost()));
+        sb.append(String.format("Prix de vente  : %10.2f Ar\n", sellingPrice != null ? sellingPrice : BigDecimal.ZERO));
 
         if (sellingPrice != null) {
             BigDecimal margin = getGrossMargin();
             double percent = sellingPrice.compareTo(BigDecimal.ZERO) > 0
                     ? margin.doubleValue() / sellingPrice.doubleValue() * 100
                     : 0;
-            sb.append(String.format("Marge brute    : %10.0f Ar (%.1f%%)\n", margin, percent));
+            sb.append(String.format("Marge brute    : %10.2f Ar (%.1f%%)\n", margin, percent));
         }
 
         sb.append("Ingrédients:\n");
