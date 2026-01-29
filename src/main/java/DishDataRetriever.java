@@ -285,11 +285,12 @@ public class DishDataRetriever implements AutoCloseable {
             throw new IllegalArgumentException("Référence obligatoire");
         }
 
+        // Requête pour récupérer la commande principale
         String sqlOrder = """
-            SELECT id, reference, creation_datetime, total_ttc, payment_status
-            FROM "order"
-            WHERE reference = ?
-            """;
+        SELECT id, reference, creation_datetime, total_ttc, payment_status
+        FROM "order"
+        WHERE reference = ?
+        """;
 
         Order order = null;
 
@@ -311,24 +312,32 @@ public class DishDataRetriever implements AutoCloseable {
             throw new IllegalArgumentException("Commande non trouvée pour référence : " + reference);
         }
 
+        // Requête pour récupérer les lignes de la commande
+        // L'alias "do_line" évite tout problème potentiel avec "do"
         String sqlLines = """
-            SELECT do.id, do.id_order, do.id_dish, do.quantity, d.name, d.selling_price
-            FROM dish_order do
-            JOIN dish d ON do.id_dish = d.id
-            WHERE do.id_order = ?
-            """;
+        SELECT 
+            do_line.id AS line_id,
+            do_line.id_order,
+            do_line.id_dish,
+            do_line.quantity,
+            d.name AS dish_name,
+            d.selling_price
+        FROM dish_order do_line
+        JOIN dish d ON do_line.id_dish = d.id
+        WHERE do_line.id_order = ?
+        """;
 
         try (PreparedStatement ps = connection.prepareStatement(sqlLines)) {
             ps.setInt(1, order.getId());
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     DishOrder doItem = new DishOrder();
-                    doItem.setId(rs.getInt("id"));
+                    doItem.setId(rs.getInt("line_id"));
                     doItem.setQuantity(rs.getInt("quantity"));
 
                     Dish dish = new Dish();
                     dish.setId(rs.getInt("id_dish"));
-                    dish.setName(rs.getString("name"));
+                    dish.setName(rs.getString("dish_name"));
                     dish.setSellingPrice(rs.getBigDecimal("selling_price"));
 
                     doItem.setDish(dish);
