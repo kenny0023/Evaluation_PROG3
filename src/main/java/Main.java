@@ -4,13 +4,9 @@ import java.time.Instant;
 public class Main {
 
     public static void main(String[] args) {
-        System.out.println("Exécution des tests TD3 + TD4...\n");
 
         try (DishDataRetriever dr = new DishDataRetriever()) {
 
-            // ───────────────────────────────────────────────
-            // Tests TD3 (coûts & marges)
-            // ───────────────────────────────────────────────
             System.out.println("Test getDishCost():");
             testAndPrintCost(dr, 1, "250.00");
             testAndPrintCost(dr, 2, "4500.00");
@@ -25,9 +21,6 @@ public class Main {
             testAndPrintMargin(dr, 4, "6600.00");
             testAndPrintMargin(dr, 5, "EXCEPTION");
 
-            // ───────────────────────────────────────────────
-            // Exemple TD4 : gestion stock
-            // ───────────────────────────────────────────────
             System.out.println("\n=== Test TD4 - Stock ===");
             Ingredient laitue = dr.findIngredientById(1);
             if (laitue != null) {
@@ -37,8 +30,6 @@ public class Main {
             } else {
                 System.out.println("Ingrédient 1 (Laitue) non trouvé");
             }
-
-            System.out.println("\n🎉 Tous les tests ont réussi !");
 
         } catch (Exception e) {
             System.err.println("❌ Erreur pendant l'exécution :");

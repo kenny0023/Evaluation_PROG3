@@ -6,7 +6,6 @@ public class IngredientNew {
     private BigDecimal price;
     private String category;
 
-    // Getters et setters...
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
 
@@ -19,4 +18,3 @@ public class IngredientNew {
     public String getCategory() { return category; }
     public void setCategory(String category) { this.category = category; }
 }
-

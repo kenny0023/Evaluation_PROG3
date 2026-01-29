@@ -11,7 +11,6 @@ public class DishDataRetriever implements AutoCloseable {
         this.connection = DBConnection.getDBConnection();
     }
 
-    // TD3 - Recherche plat simple
     public Dish findDishById(int id) throws SQLException {
         String sql = """
             SELECT id, name, dish_type, selling_price
@@ -43,7 +42,6 @@ public class DishDataRetriever implements AutoCloseable {
         }
     }
 
-    // TD3 - Coût total plat
     public BigDecimal getDishCost(int dishId) throws SQLException {
         String sql = """
             SELECT COALESCE(SUM(i.price * di.quantity_required), 0) AS total_cost
@@ -66,7 +64,6 @@ public class DishDataRetriever implements AutoCloseable {
         }
     }
 
-    // TD3 - Marge brute
     public BigDecimal getGrossMargin(int dishId) throws SQLException {
         Dish dish = findDishById(dishId);
         if (dish == null) {
@@ -82,7 +79,6 @@ public class DishDataRetriever implements AutoCloseable {
         return sellingPrice.subtract(cost).setScale(2, RoundingMode.HALF_UP);
     }
 
-    // TD4 - Ingrédient + mouvements
     public Ingredient findIngredientById(int id) throws SQLException {
         String sqlIng = """
             SELECT id, name, price, category
@@ -134,7 +130,6 @@ public class DishDataRetriever implements AutoCloseable {
         return ing;
     }
 
-    // TD4 - Sauvegarde ingrédient + mouvements
     public Ingredient saveIngredient(Ingredient ingredient) throws SQLException {
         if (ingredient == null || ingredient.getName() == null || ingredient.getName().trim().isEmpty()) {
             throw new IllegalArgumentException("Ingrédient ou nom obligatoire");
@@ -201,7 +196,6 @@ public class DishDataRetriever implements AutoCloseable {
         }
     }
 
-    // Annexe 2 - Sauvegarde commande + vérif stock
     public Order saveOrder(Order orderToSave) throws SQLException {
         if (orderToSave == null || orderToSave.getReference() == null || orderToSave.getDishOrders().isEmpty()) {
             throw new IllegalArgumentException("Commande invalide ou vide");
@@ -213,7 +207,6 @@ public class DishDataRetriever implements AutoCloseable {
         try {
             conn.setAutoCommit(false);
 
-            // Vérification stock
             for (DishOrder doItem : orderToSave.getDishOrders()) {
                 Dish dish = doItem.getDish();
                 if (dish == null) continue;
@@ -234,7 +227,6 @@ public class DishDataRetriever implements AutoCloseable {
                 }
             }
 
-            // Insertion commande
             String sqlOrder = """
                 INSERT INTO "order" (reference, creation_datetime, total_ttc)
                 VALUES (?, ?, ?)
@@ -256,7 +248,6 @@ public class DishDataRetriever implements AutoCloseable {
                 }
             }
 
-            // Insertion lignes
             String sqlDishOrder = """
                 INSERT INTO dish_order (id_order, id_dish, quantity)
                 VALUES (?, ?, ?)
