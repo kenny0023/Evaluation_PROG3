@@ -1,6 +1,7 @@
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.*;
+import java.time.Instant;
 
 public class DishDataRetriever implements AutoCloseable {
 
@@ -10,6 +11,7 @@ public class DishDataRetriever implements AutoCloseable {
         this.connection = DBConnection.getDBConnection();
     }
 
+    // TD3 - Recherche plat simple
     public Dish findDishById(int id) throws SQLException {
         String sql = """
             SELECT id, name, dish_type, selling_price
@@ -41,6 +43,7 @@ public class DishDataRetriever implements AutoCloseable {
         }
     }
 
+    // TD3 - Coût total plat
     public BigDecimal getDishCost(int dishId) throws SQLException {
         String sql = """
             SELECT COALESCE(SUM(i.price * di.quantity_required), 0) AS total_cost
@@ -63,6 +66,7 @@ public class DishDataRetriever implements AutoCloseable {
         }
     }
 
+    // TD3 - Marge brute
     public BigDecimal getGrossMargin(int dishId) throws SQLException {
         Dish dish = findDishById(dishId);
         if (dish == null) {
@@ -78,9 +82,7 @@ public class DishDataRetriever implements AutoCloseable {
         return sellingPrice.subtract(cost).setScale(2, RoundingMode.HALF_UP);
     }
 
-    /**
-     * CHARGEMENT INGREDIENT + SES MOUVEMENTS DE STOCK (TD4)
-     */
+    // TD4 - Ingrédient + mouvements
     public Ingredient findIngredientById(int id) throws SQLException {
         String sqlIng = """
             SELECT id, name, price, category
@@ -106,7 +108,6 @@ public class DishDataRetriever implements AutoCloseable {
 
         if (ing == null) return null;
 
-        // Charger les mouvements
         String sqlMov = """
             SELECT id, id_ingredient, quantity, unit, type, creation_datetime
             FROM stock_movement
@@ -133,12 +134,10 @@ public class DishDataRetriever implements AutoCloseable {
         return ing;
     }
 
-    /**
-     * SAUVEGARDE INGREDIENT + NOUVEAUX MOUVEMENTS (TD4)
-     */
+    // TD4 - Sauvegarde ingrédient + mouvements
     public Ingredient saveIngredient(Ingredient ingredient) throws SQLException {
-        if (ingredient == null || ingredient.getName() == null) {
-            throw new IllegalArgumentException("Ingrédient invalide");
+        if (ingredient == null || ingredient.getName() == null || ingredient.getName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Ingrédient ou nom obligatoire");
         }
 
         Connection conn = DBConnection.getDBConnection();
@@ -147,10 +146,9 @@ public class DishDataRetriever implements AutoCloseable {
         try {
             conn.setAutoCommit(false);
 
-            // 1. Sauvegarde / update ingrédient
             String sqlIng = """
                 INSERT INTO ingredient (name, price, category)
-                VALUES (?, ?, ?)
+                VALUES (?, ?, ?::category)
                 ON CONFLICT (name) DO UPDATE SET
                     price = EXCLUDED.price,
                     category = EXCLUDED.category
@@ -167,7 +165,6 @@ public class DishDataRetriever implements AutoCloseable {
                 }
             }
 
-            // 2. Sauvegarde nouveaux mouvements
             String sqlMvt = """
                 INSERT INTO stock_movement (id_ingredient, quantity, unit, type, creation_datetime)
                 VALUES (?, ?, ?::unit_enum, ?::movement_type, ?)
@@ -176,7 +173,7 @@ public class DishDataRetriever implements AutoCloseable {
 
             try (PreparedStatement ps = conn.prepareStatement(sqlMvt)) {
                 for (StockMovement m : ingredient.getStockMovements()) {
-                    if (m.getId() == null) { // seulement nouveaux
+                    if (m.getId() == null) {
                         ps.setInt(1, ingredient.getId());
                         ps.setBigDecimal(2, m.getQuantity());
                         ps.setString(3, m.getUnit().name());
@@ -202,6 +199,153 @@ public class DishDataRetriever implements AutoCloseable {
                 conn.close();
             }
         }
+    }
+
+    // Annexe 2 - Sauvegarde commande + vérif stock
+    public Order saveOrder(Order orderToSave) throws SQLException {
+        if (orderToSave == null || orderToSave.getReference() == null || orderToSave.getDishOrders().isEmpty()) {
+            throw new IllegalArgumentException("Commande invalide ou vide");
+        }
+
+        Connection conn = DBConnection.getDBConnection();
+        boolean autoCommit = conn.getAutoCommit();
+
+        try {
+            conn.setAutoCommit(false);
+
+            // Vérification stock
+            for (DishOrder doItem : orderToSave.getDishOrders()) {
+                Dish dish = doItem.getDish();
+                if (dish == null) continue;
+
+                for (DishIngredient di : dish.getDishIngredients()) {
+                    Ingredient ing = di.getIngredient();
+                    if (ing == null) continue;
+
+                    BigDecimal needed = di.getQuantityRequired().multiply(BigDecimal.valueOf(doItem.getQuantity()));
+
+                    StockValue current = ing.getStockValueAt(Instant.now());
+                    if (current.getQuantity().compareTo(needed) < 0) {
+                        throw new IllegalStateException(
+                                String.format("Stock insuffisant pour %s : besoin %.2f %s, disponible %.2f %s",
+                                        ing.getName(), needed, di.getUnit(), current.getQuantity(), current.getUnit())
+                        );
+                    }
+                }
+            }
+
+            // Insertion commande
+            String sqlOrder = """
+                INSERT INTO "order" (reference, creation_datetime, total_ttc)
+                VALUES (?, ?, ?)
+                RETURNING id
+                """;
+
+            Integer orderId;
+            try (PreparedStatement ps = conn.prepareStatement(sqlOrder)) {
+                ps.setString(1, orderToSave.getReference());
+                ps.setTimestamp(2, Timestamp.from(orderToSave.getCreationDatetime() != null
+                        ? orderToSave.getCreationDatetime() : Instant.now()));
+                ps.setBigDecimal(3, orderToSave.getTotalTtc());
+                ResultSet rs = ps.executeQuery();
+                if (rs.next()) {
+                    orderId = rs.getInt("id");
+                    orderToSave.setId(orderId);
+                } else {
+                    throw new SQLException("Échec création commande");
+                }
+            }
+
+            // Insertion lignes
+            String sqlDishOrder = """
+                INSERT INTO dish_order (id_order, id_dish, quantity)
+                VALUES (?, ?, ?)
+                RETURNING id
+                """;
+
+            try (PreparedStatement ps = conn.prepareStatement(sqlDishOrder)) {
+                for (DishOrder doItem : orderToSave.getDishOrders()) {
+                    ps.setInt(1, orderId);
+                    ps.setInt(2, doItem.getDish().getId());
+                    ps.setInt(3, doItem.getQuantity());
+                    ResultSet rs = ps.executeQuery();
+                    if (rs.next()) {
+                        doItem.setId(rs.getInt("id"));
+                    }
+                }
+            }
+
+            conn.commit();
+            return orderToSave;
+
+        } catch (SQLException | IllegalStateException e) {
+            if (conn != null) conn.rollback();
+            throw e;
+        } finally {
+            if (conn != null) {
+                conn.setAutoCommit(autoCommit);
+                conn.close();
+            }
+        }
+    }
+
+    public Order findOrderByReference(String reference) throws SQLException {
+        if (reference == null || reference.trim().isEmpty()) {
+            throw new IllegalArgumentException("Référence obligatoire");
+        }
+
+        String sqlOrder = """
+        SELECT id, reference, creation_datetime, total_ttc
+        FROM "order"
+        WHERE reference = ?
+        """;
+
+        Order order = null;
+
+        try (PreparedStatement ps = connection.prepareStatement(sqlOrder)) {
+            ps.setString(1, reference);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    order = new Order();
+                    order.setId(rs.getInt("id"));
+                    order.setReference(rs.getString("reference"));
+                    order.setCreationDatetime(rs.getTimestamp("creation_datetime").toInstant());
+                    order.setTotalTtc(rs.getBigDecimal("total_ttc"));
+                }
+            }
+        }
+
+        if (order == null) {
+            throw new IllegalArgumentException("Commande non trouvée pour référence : " + reference);
+        }
+
+        String sqlLines = """
+        SELECT do.id, do.id_order, do.id_dish, do.quantity, d.name, d.selling_price
+        FROM dish_order do
+        JOIN dish d ON do.id_dish = d.id
+        WHERE do.id_order = ?
+        """;
+
+        try (PreparedStatement ps = connection.prepareStatement(sqlLines)) {
+            ps.setInt(1, order.getId());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    DishOrder doItem = new DishOrder();
+                    doItem.setId(rs.getInt("id"));
+                    doItem.setQuantity(rs.getInt("quantity"));
+
+                    Dish dish = new Dish();
+                    dish.setId(rs.getInt("id_dish"));
+                    dish.setName(rs.getString("name"));
+                    dish.setSellingPrice(rs.getBigDecimal("selling_price"));
+
+                    doItem.setDish(dish);
+                    order.addDishOrder(doItem);
+                }
+            }
+        }
+
+        return order;
     }
 
     @Override
