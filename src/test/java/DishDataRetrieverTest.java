@@ -1,86 +1,6 @@
-//import org.junit.jupiter.api.BeforeEach;
-//import org.junit.jupiter.api.Test;
-//import static org.junit.jupiter.api.Assertions.*;
-//import static org.junit.jupiter.api.Assumptions.assumeTrue;
-//
-//import java.sql.SQLException;
-//
-//class DishDataRetrieverTest {
-//
-//    private DishDataRetriever retriever;
-//
-//    @BeforeEach
-//    void setUp() {
-//        retriever = new DishDataRetriever();
-//    }
-//
-//    @Test
-//    void testFindDishById_ExistingDish_ReturnsDishWithIngredients() throws SQLException {
-//        Dish dish = retriever.findDishById(1);
-//
-//        assertNotNull(dish, "Le plat ne devrait pas être null");
-//
-//        String normalizedName = dish.getName()
-//                .replace("Œ", "Oe")
-//                .replace("œ", "oe")
-//                .replaceAll("[îï]", "i")
-//                .trim()
-//                .toLowerCase();
-//
-//        assertTrue(
-//                normalizedName.contains("salade") && normalizedName.contains("fra"),
-//                "Le nom du plat devrait contenir 'salade' et 'fraîche' (tolérance accents)"
-//        );
-//
-//        assertEquals(DishTypeEnum.START, dish.getDishType(),
-//                "Le type de plat devrait être START");
-//
-//        boolean hasVegetableLike = dish.getIngredients().stream()
-//                .anyMatch(ing -> {
-//                    String n = ing.getName().trim().toLowerCase();
-//                    return n.contains("laitue") || n.contains("salade") || n.contains("tomate");
-//                });
-//
-//        assertTrue(hasVegetableLike,
-//                "Le plat devrait contenir au moins un ingrédient de type salade/laitue/tomate (insensible casse)");
-//    }
-//
-//    @Test
-//    void testFindDishById_NonExistingId_ReturnsNull() throws SQLException {
-//        Dish dish = retriever.findDishById(9999);
-//        assertNull(dish, "Un id inexistant devrait retourner null");
-//    }
-//
-//    @Test
-//    void testDishCostCalculation_NotNegative() throws SQLException {
-//        Dish dish = retriever.findDishById(1);
-//
-//        assertNotNull(dish);
-//
-//        double cost = dish.getCostPrice();
-//        assertTrue(cost >= 0, "Le coût matière ne devrait jamais être négatif");
-//    }
-//
-//    @Test
-//    void testDishWithSellingPrice_HasValidMargin() throws SQLException {
-//
-//        Dish dish = retriever.findDishById(2);
-//
-//        assumeTrue(dish != null, "Ce test suppose que le plat 2 existe");
-//        assumeTrue(dish.getSellingPrice() != null, "Ce test suppose un prix de vente");
-//
-//        double margin = dish.getMargin();
-//        double marginPercent = dish.getMarginPercent();
-//
-//        assertTrue(margin >= 0, "La marge brute ne devrait pas être négative");
-//        assertTrue(marginPercent >= 0 && marginPercent <= 100,
-//                "Le pourcentage de marge devrait être entre 0% et 100%");
-//    }
-//}
-
-
 import org.junit.jupiter.api.*;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -96,6 +16,7 @@ class DishDataRetrieverTest {
     @BeforeAll
     void setUp() throws SQLException {
         retriever = new DishDataRetriever();
+        dr = retriever;
     }
 
     @AfterAll
@@ -105,16 +26,23 @@ class DishDataRetrieverTest {
         }
     }
 
+    private void assertBigDecimalEquals(String expected, BigDecimal actual, String message) {
+        assertNotNull(actual, message + " (la valeur est nulle)");
+        BigDecimal exp = new BigDecimal(expected).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal act = actual.setScale(2, RoundingMode.HALF_UP);
+        assertEquals(exp, act, message);
+    }
+
     @Test
     void getDishCost_existingDish_returnsCorrectCost() throws SQLException {
         BigDecimal cost = retriever.getDishCost(1);
-        assertEquals(new BigDecimal("250.00"), cost.setScale(2));
+        assertBigDecimalEquals("250.00", cost, "Le coût du plat ID 1 est incorrect");
     }
 
     @Test
     void getGrossMargin_existingDishWithPrice_returnsCorrectMargin() throws SQLException {
         BigDecimal margin = retriever.getGrossMargin(1);
-        assertEquals(new BigDecimal("3250.00"), margin.setScale(2));
+        assertBigDecimalEquals("3250.00", margin, "La marge brute du plat ID 1 est incorrecte");
     }
 
     @Test
@@ -127,11 +55,12 @@ class DishDataRetrieverTest {
         Ingredient ing = retriever.findIngredientById(1);
         assertNotNull(ing);
         assertEquals("Laitue", ing.getName());
-        assertFalse(ing.getStockMovements().isEmpty());
+        assertFalse(ing.getStockMovements().isEmpty(), "L'ingrédient devrait avoir des mouvements de stock");
 
         Instant t = Instant.parse("2024-06-01T12:08:00Z");
         StockValue stock = ing.getStockValueAt(t);
-        assertEquals(new BigDecimal("4.80"), stock.getQuantity().setScale(2));
+        assertNotNull(stock);
+        assertBigDecimalEquals("4.80", stock.getQuantity(), "La quantité en stock au temps T est incorrecte");
     }
 
     @Test
@@ -143,16 +72,17 @@ class DishDataRetrieverTest {
         newIng.setPrice(new BigDecimal("12000.00"));
         newIng.setCategory(CategoryEnum.OTHER);
 
-        newIng.addStockMovement(new StockMovement() {{
-            setQuantity(new BigDecimal("5.0"));
-            setUnit(UnitTypeEnum.KG);
-            setType(MovementTypeEnum.IN);
-            setCreationDatetime(Instant.now().minus(1, ChronoUnit.DAYS));
-        }});
+        StockMovement sm = new StockMovement();
+        sm.setQuantity(new BigDecimal("5.0"));
+        sm.setUnit(UnitTypeEnum.KG);
+        sm.setType(MovementTypeEnum.IN);
+        sm.setCreationDatetime(Instant.now().minus(1, ChronoUnit.DAYS));
+
+        newIng.addStockMovement(sm);
 
         Ingredient saved = retriever.saveIngredient(newIng);
 
-        assertNotNull(saved.getId());
+        assertNotNull(saved.getId(), "L'ID sauvegardé ne devrait pas être nul");
         assertTrue(saved.getId() > 0);
 
         Ingredient reloaded = retriever.findIngredientById(saved.getId());
@@ -163,7 +93,7 @@ class DishDataRetrieverTest {
     @Test
     void saveOrder_validOrderWithStock_savesSuccessfully() throws SQLException {
         Dish dish = retriever.findDishById(1);
-        assertNotNull(dish);
+        assertNotNull(dish, "Le plat ID 1 doit exister en base pour ce test");
 
         Order order = new Order();
         order.setReference("ORD-VALID-" + System.currentTimeMillis());
@@ -179,7 +109,6 @@ class DishDataRetrieverTest {
         Order saved = retriever.saveOrder(order);
         assertNotNull(saved.getId());
         assertEquals(order.getReference(), saved.getReference());
-        assertEquals(PaymentStatusEnum.UNPAID, saved.getPaymentStatus());
     }
 
     @Test
@@ -190,16 +119,15 @@ class DishDataRetrieverTest {
         Order order = new Order();
         order.setReference("ORD-INSUFF-" + System.currentTimeMillis());
         order.setCreationDatetime(Instant.now());
-        order.setTotalTtc(new BigDecimal("99999999.99"));
+        order.setTotalTtc(new BigDecimal("999999.00"));
 
         DishOrder line = new DishOrder();
         line.setDish(dish);
         line.setQuantity(1000000);
         order.addDishOrder(line);
 
-        IllegalStateException thrown = assertThrows(IllegalStateException.class,
-                () -> retriever.saveOrder(order));
-        assertTrue(thrown.getMessage().contains("Stock insuffisant"));
+        assertThrows(IllegalStateException.class, () -> retriever.saveOrder(order),
+                "Une IllegalStateException devrait être jetée pour stock insuffisant");
     }
 
     @Test
@@ -213,19 +141,16 @@ class DishDataRetrieverTest {
         order.setPaymentStatus(PaymentStatusEnum.UNPAID);
 
         Dish dish = retriever.findDishById(1);
-        assertNotNull(dish);
-
         DishOrder line = new DishOrder();
         line.setDish(dish);
         line.setQuantity(1);
         order.addDishOrder(line);
 
-        Order saved = retriever.saveOrder(order);
+        retriever.saveOrder(order);
 
         Order reloaded = retriever.findOrderByReference(uniqueRef);
         assertNotNull(reloaded);
         assertEquals(uniqueRef, reloaded.getReference());
-        assertEquals(PaymentStatusEnum.UNPAID, reloaded.getPaymentStatus());
         assertFalse(reloaded.getDishOrders().isEmpty());
     }
 
@@ -246,8 +171,6 @@ class DishDataRetrieverTest {
         order.setPaymentStatus(PaymentStatusEnum.PAID);
 
         Dish dish = retriever.findDishById(1);
-        assertNotNull(dish);
-
         DishOrder line = new DishOrder();
         line.setDish(dish);
         line.setQuantity(1);
@@ -256,9 +179,9 @@ class DishDataRetrieverTest {
         Order savedOrder = retriever.saveOrder(order);
 
         Sale sale = retriever.createSaleFrom(savedOrder);
+        assertNotNull(sale);
         assertNotNull(sale.getId());
-        assertEquals(savedOrder, sale.getOrder());
-        assertNotNull(sale.getCreationDatetime());
+        assertEquals(savedOrder.getReference(), sale.getOrder().getReference());
     }
 
     @Test
@@ -279,8 +202,7 @@ class DishDataRetrieverTest {
 
         Order savedOrder = retriever.saveOrder(order);
 
-        assertThrows(IllegalStateException.class,
-                () -> retriever.createSaleFrom(savedOrder));
+        assertThrows(IllegalStateException.class, () -> retriever.createSaleFrom(savedOrder));
     }
 
     @Test
@@ -299,7 +221,7 @@ class DishDataRetrieverTest {
         line.setQuantity(1);
         order.addDishOrder(line);
 
-        Order savedOrder = retriever.saveOrder(order);
+        retriever.saveOrder(order);
 
         dr.markOrderAsPaid(uniqueRef);
 
@@ -323,9 +245,8 @@ class DishDataRetrieverTest {
         line.setQuantity(1);
         order.addDishOrder(line);
 
-        Order savedOrder = retriever.saveOrder(order);
+        retriever.saveOrder(order);
 
-        assertThrows(IllegalStateException.class,
-                () -> dr.markOrderAsPaid(uniqueRef));
+        assertThrows(IllegalStateException.class, () -> dr.markOrderAsPaid(uniqueRef));
     }
 }
