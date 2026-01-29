@@ -1,52 +1,45 @@
-CREATE TABLE IF NOT EXISTS Ingredient_New (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    price NUMERIC(10, 2) NOT NULL,
-    category category NOT NULL
-);
+SELECT column_name, data_type 
+FROM information_schema.columns 
+WHERE table_name = 'dish' AND column_name = 'dish_type';
 
 CREATE TYPE unit_enum AS ENUM ('PIECE', 'KG', 'L', 'ML', 'G');
 
-CREATE TABLE IF NOT EXISTS DishIngredient (
-    id_dish INTEGER NOT NULL,
-    id_ingredient INTEGER NOT NULL,
-    required_quantity NUMERIC(10, 2) NOT NULL,
-    unit unit_enum NOT NULL,
-    PRIMARY KEY (id_dish, id_ingredient),
-    FOREIGN KEY (id_dish) REFERENCES Dish(id) ON DELETE CASCADE,
-    FOREIGN KEY (id_ingredient) REFERENCES Ingredient_New(id) ON DELETE CASCADE
+CREATE TABLE dish_ingredient (
+  id SERIAL PRIMARY KEY,
+  id_dish INTEGER NOT NULL REFERENCES dish(id) ON DELETE CASCADE,
+  id_ingredient INTEGER NOT NULL REFERENCES ingredient(id) ON DELETE CASCADE,
+  quantity_required NUMERIC(10, 2) NOT NULL,
+  unit unit_enum NOT NULL
 );
 
-INSERT INTO Ingredient_New (name, price, category)
-SELECT DISTINCT ON (name) name, price, category
-FROM Ingredient
-ON CONFLICT (name) DO NOTHING;
+ALTER TABLE dish ADD COLUMN IF NOT EXISTS selling_price NUMERIC(10,2);
 
--- Version avec VALUES
-INSERT INTO DishIngredient (id_dish, id_ingredient, required_quantity, unit)
-VALUES (1, 5, 0.250, 'KG');
+ALTER TABLE ingredient DROP COLUMN IF EXISTS id_dish;
+ALTER TABLE ingredient DROP COLUMN IF EXISTS quantity;
 
--- Version avec SELECT
-INSERT INTO DishIngredient (id_dish, id_ingredient, required_quantity, unit)
-SELECT 1, id, 0.300, 'KG'
-FROM Ingredient
-WHERE name ILIKE '%tomate%';
+SELECT * FROM dish;
 
-SELECT
-    i.id_dish,
-    in2.id,
-    COALESCE(i.required_quantity, 1.0),
-    'PIECE'::unit_enum
-FROM Ingredient i
-JOIN Ingredient_New in2 ON i.name = in2.name
-WHERE i.id_dish IS NOT NULL
-ON CONFLICT (id_dish, id_ingredient) DO NOTHING;
+INSERT INTO ingredient (name, price, category) VALUES
+('Laitue', 800.00, 'VEGETABLE'),
+('Tomate', 600.00, 'VEGETABLE'),
+('Poulet', 4500.00, 'ANIMAL'),
+('Chocolat', 3000.00, 'OTHER'),
+('Beurre', 2500.00, 'DAIRY');
 
-DROP TABLE IF EXISTS Ingredient CASCADE;
+INSERT INTO dish (name, dish_type, selling_price) VALUES 
+('Salade fraiche', 'START', 3500.00),
+('Poulet grille', 'MAIN', 12000.00),
+('Riz aux legumes', 'MAIN', NULL),
+('Gateau au chocolat', 'DESSERT', 8000.00),
+('Salade de fruits', 'DESSERT', NULL);
 
-ALTER TABLE Ingredient_New RENAME TO Ingredient;
+INSERT INTO dish_ingredient (id_dish, id_ingredient, quantity_required, unit) VALUES 
+(1, 1, 0.20, 'KG'),
+(1, 2, 0.15, 'KG'),
+(2, 3, 1.00, 'KG'),
+(4, 4, 0.30, 'KG'),
+(4, 5, 0.20, 'KG');
 
-ALTER TABLE Dish
-ADD COLUMN IF NOT EXISTS selling_price NUMERIC(10, 2);
+SELECT * FROM ingredient;
 
-select i.name, i.price, i.required_quantity, i.id_dish from Ingredient i where i.id_dish = 1;
+INSERT INTO dish_ingredient (id_dish, id_ingredient, quantity_required, unit) VALUES (4, 4, 0.30, 'KG');

@@ -1,74 +1,39 @@
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
 
-public class DishDataRetriever {
+public class DishDataRetriever implements AutoCloseable {
 
-    private final DBConnection db = new DBConnection();
+    private final Connection connection;
 
-    /**
-     * Récupère un plat complet avec ses ingrédients et quantités via DishIngredient
-     */
+    public DishDataRetriever() throws SQLException {
+        this.connection = DBConnection.getDBConnection();
+    }
+
     public Dish findDishById(int id) throws SQLException {
         String sql = """
-            SELECT
-                d.id            AS d_id,
-                d.name          AS d_name,
-                d.dish_type     AS d_type,
-                d.selling_price AS d_selling_price,
-                
-                i.id            AS i_id,
-                i.name          AS i_name,
-                i.price         AS i_price,
-                i.category      AS i_category,
-                
-                di.required_quantity,
-                di.unit
-            FROM Dish d
-            LEFT JOIN DishIngredient di ON d.id = di.id_dish
-            LEFT JOIN Ingredient i      ON di.id_ingredient = i.id
-            WHERE d.id = ?
-            ORDER BY i.name
+            SELECT id, name, dish_type, selling_price
+            FROM dish
+            WHERE id = ?
             """;
 
-        try (Connection conn = db.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;
 
-            pstmt.setInt(1, id);
+                Dish dish = new Dish();
+                dish.setId(rs.getInt("id"));
+                dish.setName(rs.getString("name"));
 
-            try (ResultSet rs = pstmt.executeQuery()) {
-                Dish dish = null;
-                List<Ingredient> ingredients = new ArrayList<>();
-
-                while (rs.next()) {
-                    if (dish == null) {
-                        dish = new Dish(
-                                rs.getInt("d_id"),
-                                rs.getString("d_name"),
-                                DishTypeEnum.valueOf(rs.getString("d_type")),
-                                rs.getDouble("d_selling_price")   // ← plus sûr pour les colonnes NUMERIC
-                        );
-                    }
-
-                    // Ingrédient présent ?
-                    Integer ingredientId = rs.getObject("i_id", Integer.class);
-                    if (ingredientId != null) {
-                        Ingredient ing = new Ingredient(
-                                ingredientId,
-                                rs.getString("i_name"),
-                                rs.getDouble("i_price"),
-                                CategoryEnum.valueOf(rs.getString("i_category")),
-                                rs.getDouble("required_quantity"),
-                                rs.getString("unit")
-                        );
-                        ingredients.add(ing);
-                    }
+                String typeStr = rs.getString("dish_type");
+                if (typeStr != null) {
+                    dish.setDishType(DishTypeEnum.valueOf(typeStr.toUpperCase()));
                 }
 
-                if (dish != null) {
-                    for (Ingredient ing : ingredients) {
-                        dish.addIngredient(ing);
-                    }
+                BigDecimal price = rs.getBigDecimal("selling_price");
+                if (!rs.wasNull()) {
+                    dish.setSellingPrice(price);
                 }
 
                 return dish;
@@ -76,105 +41,47 @@ public class DishDataRetriever {
         }
     }
 
+    public BigDecimal getDishCost(int dishId) throws SQLException {
+        String sql = """
+            SELECT COALESCE(SUM(i.price * di.quantity_required), 0) AS total_cost
+            FROM dish d
+            LEFT JOIN dish_ingredient di ON d.id = di.id_dish
+            LEFT JOIN ingredient i ON di.id_ingredient = i.id
+            WHERE d.id = ?
+            GROUP BY d.id
+            """;
 
-    /**
-     * Crée ou met à jour un plat avec ses ingrédients (version simplifiée)
-     * Note : suppose que les ingrédients existent déjà dans la table Ingredient
-     */
-    public Dish saveDish(Dish dish) throws SQLException {
-        if (dish == null) throw new IllegalArgumentException("Dish ne peut pas être null");
-
-        try (Connection conn = db.getConnection()) {
-            conn.setAutoCommit(false);
-
-            Integer dishId = dish.getId();
-
-            // 1. Création ou mise à jour du plat
-            if (dishId == null) {
-                // Nouveau plat
-                String insertDish = """
-                    INSERT INTO Dish (name, dish_type, selling_price)
-                    VALUES (?, ?::dish_type, ?)
-                    RETURNING id
-                    """;
-
-                try (PreparedStatement ps = conn.prepareStatement(insertDish)) {
-                    ps.setString(1, dish.getName());
-                    ps.setString(2, dish.getDishType().name());
-                    ps.setObject(3, dish.getSellingPrice(), Types.DOUBLE);
-
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) {
-                            dishId = rs.getInt(1);
-                            dish.setId(dishId);
-                        }
-                    }
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setInt(1, dishId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getBigDecimal("total_cost")
+                            .setScale(2, RoundingMode.HALF_UP);
                 }
-            } else {
-                // Mise à jour existant
-                String updateDish = """
-                    UPDATE Dish
-                    SET name = ?,
-                        dish_type = ?::dish_type,
-                        selling_price = ?
-                    WHERE id = ?
-                    """;
-
-                try (PreparedStatement ps = conn.prepareStatement(updateDish)) {
-                    ps.setString(1, dish.getName());
-                    ps.setString(2, dish.getDishType().name());
-                    ps.setObject(3, dish.getSellingPrice(), Types.DOUBLE);
-                    ps.setInt(4, dishId);
-                    ps.executeUpdate();
-                }
+                return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
             }
+        }
+    }
 
-            // 2. Supprimer les anciennes relations (si mise à jour)
-            if (dishId != null) {
-                String deleteOld = "DELETE FROM DishIngredient WHERE id_dish = ?";
-                try (PreparedStatement ps = conn.prepareStatement(deleteOld)) {
-                    ps.setInt(1, dishId);
-                    ps.executeUpdate();
-                }
-            }
+    public BigDecimal getGrossMargin(int dishId) throws SQLException {
+        Dish dish = findDishById(dishId);
+        if (dish == null) {
+            throw new SQLException("Plat non trouvé id=" + dishId);
+        }
 
-            // 3. Insérer les nouvelles relations
-            if (!dish.getIngredients().isEmpty()) {
-                String insertRelation = """
-                    INSERT INTO DishIngredient 
-                        (id_dish, id_ingredient, required_quantity, unit)
-                    VALUES (?, ?, ?, ?::unit_enum)
-                    ON CONFLICT (id_dish, id_ingredient) DO NOTHING
-                    """;
+        BigDecimal price = dish.getSellingPrice();
+        if (price == null) {
+            throw new IllegalStateException("Prix de vente non défini pour " + dish.getName());
+        }
 
-                try (PreparedStatement ps = conn.prepareStatement(insertRelation)) {
-                    for (Ingredient ing : dish.getIngredients()) {
-                        if (ing.getId() == null) {
-                            throw new SQLException("L'ingrédient doit avoir un id existant : " + ing.getName());
-                        }
+        BigDecimal cost = getDishCost(dishId);
+        return price.subtract(cost).setScale(2, RoundingMode.HALF_UP);
+    }
 
-                        ps.setInt(1, dishId);
-                        ps.setInt(2, ing.getId());
-                        ps.setDouble(3, ing.getRequiredQuantity() != null ? ing.getRequiredQuantity() : 1.0);
-                        ps.setString(4, ing.getUnit() != null ? ing.getUnit() : "KG");
-                        ps.addBatch();
-                    }
-                    ps.executeBatch();
-                }
-            }
-
-            conn.commit();
-
-            // Recharger le plat complet pour avoir l'état final
-            return findDishById(dishId);
-        } catch (SQLException e) {
-            // rollback en cas d'erreur
-            try (Connection conn = db.getConnection()) {
-                if (!conn.getAutoCommit()) {
-                    conn.rollback();
-                }
-            } catch (SQLException ignored) {}
-            throw e;
+    @Override
+    public void close() throws SQLException {
+        if (connection != null && !connection.isClosed()) {
+            connection.close();
         }
     }
 }

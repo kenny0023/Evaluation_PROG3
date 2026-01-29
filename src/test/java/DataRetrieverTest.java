@@ -1,9 +1,8 @@
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
-
+import java.math.BigDecimal;
 import java.sql.SQLException;
+import static org.junit.jupiter.api.Assertions.*;
 
 class DishDataRetrieverTest {
 
@@ -11,71 +10,42 @@ class DishDataRetrieverTest {
 
     @BeforeEach
     void setUp() {
-        retriever = new DishDataRetriever();
+        try {
+            retriever = new DishDataRetriever();
+        } catch (SQLException e) {
+            // On échoue explicitement mais avec message clair
+            fail("Échec connexion BDD : " + e.getMessage());
+        }
     }
 
     @Test
-    void testFindDishById_ExistingDish_ReturnsDishWithIngredients() throws SQLException {
-        Dish dish = retriever.findDishById(1);
-
-        assertNotNull(dish, "Le plat ne devrait pas être null");
-
-        // Tolérance maximale pour le nom du plat (accents + ligatures)
-        String normalizedName = dish.getName()
-                .replace("Œ", "Oe")
-                .replace("œ", "oe")
-                .replaceAll("[îï]", "i")
-                .trim()
-                .toLowerCase();
-
-        assertTrue(
-                normalizedName.contains("salade") && normalizedName.contains("fra"),
-                "Le nom du plat devrait contenir 'salade' et 'fraîche' (tolérance accents)"
-        );
-
-        assertEquals(DishTypeEnum.START, dish.getDishType(),
-                "Le type de plat devrait être START");
-
-        // Vérification très souple pour les ingrédients
-        boolean hasVegetableLike = dish.getIngredients().stream()
-                .anyMatch(ing -> {
-                    String n = ing.getName().trim().toLowerCase();
-                    return n.contains("laitue") || n.contains("salade") || n.contains("tomate");
-                });
-
-        assertTrue(hasVegetableLike,
-                "Le plat devrait contenir au moins un ingrédient de type salade/laitue/tomate (insensible casse)");
+    void testFindDishById_1() throws SQLException {
+        Dish d = retriever.findDishById(1);
+        assertNotNull(d);
+        assertEquals(1, d.getId());
+        assertTrue(d.getName().toLowerCase().contains("salade"));
     }
 
     @Test
-    void testFindDishById_NonExistingId_ReturnsNull() throws SQLException {
-        Dish dish = retriever.findDishById(9999);
-        assertNull(dish, "Un id inexistant devrait retourner null");
+    void testFindDishById_9999_returnsNull() throws SQLException {
+        assertNull(retriever.findDishById(9999));
     }
 
     @Test
-    void testDishCostCalculation_NotNegative() throws SQLException {
-        Dish dish = retriever.findDishById(1);
-
-        assertNotNull(dish);
-
-        double cost = dish.getCostPrice();
-        assertTrue(cost >= 0, "Le coût matière ne devrait jamais être négatif");
+    void testGetDishCost_1() throws SQLException {
+        BigDecimal cost = retriever.getDishCost(1);
+        assertTrue(cost.compareTo(BigDecimal.ZERO) >= 0);
     }
 
     @Test
-    void testDishWithSellingPrice_HasValidMargin() throws SQLException {
-        // Suppose que le plat 2 a un prix de vente
-        Dish dish = retriever.findDishById(2);
+    void testGetGrossMargin_2() throws SQLException {
+        BigDecimal margin = retriever.getGrossMargin(2);
+        assertTrue(margin.compareTo(BigDecimal.ZERO) >= 0);
+    }
 
-        assumeTrue(dish != null, "Ce test suppose que le plat 2 existe");
-        assumeTrue(dish.getSellingPrice() != null, "Ce test suppose un prix de vente");
-
-        double margin = dish.getMargin();
-        double marginPercent = dish.getMarginPercent();
-
-        assertTrue(margin >= 0, "La marge brute ne devrait pas être négative");
-        assertTrue(marginPercent >= 0 && marginPercent <= 100,
-                "Le pourcentage de marge devrait être entre 0% et 100%");
+    @Test
+    void testGetGrossMargin_withoutPrice_throwsException() throws SQLException {
+        assertThrows(IllegalStateException.class,
+                () -> retriever.getGrossMargin(3));
     }
 }
